@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Users, CheckCircle, XCircle, Clock, BrainCircuit, FileDown, AlertTriangle, Star, PieChart as PieChartIcon, FileText, Activity, Filter, ArrowRight, ClipboardCheck, Medal, Trophy, FileSignature, Lightbulb, Calendar as CalendarIcon } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Clock, BrainCircuit, FileDown, AlertTriangle, Star, PieChart as PieChartIcon, FileText, Activity, Filter, ArrowRight, ClipboardCheck, Medal, Trophy, FileSignature, Lightbulb, Calendar as CalendarIcon, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus, DailyStat, AppSettings, SchoolEvent } from '../types';
 import { analyzeAttendance, generateDailyInsight } from '../services/geminiService';
-import { exportToCSV, getLeaveRequests, getCurrentUser, getEvents } from '../services/storageService';
+import { exportToCSV, getLeaveRequests, getCurrentUser, getEvents, getBehaviorRecords } from '../services/storageService';
 
 interface DashboardProps {
   students: Student[];
@@ -22,6 +22,10 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [pendingLeaves, setPendingLeaves] = useState(0);
   const [upcomingEvents, setUpcomingEvents] = useState<SchoolEvent[]>([]);
+  
+  // Behavior Stats
+  const [behaviorStats, setBehaviorStats] = useState({ positive: 0, negative: 0 });
+  const [topBehaviorStudent, setTopBehaviorStudent] = useState<{name: string, score: number} | null>(null);
 
   // Filter Logic
   const uniqueGrades = useMemo(() => {
@@ -91,8 +95,29 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
           .sort((a,b) => a.date.localeCompare(b.date))
           .slice(0, 3);
        setUpcomingEvents(upcoming);
+
+       // Get Behavior Stats
+       const allBehaviors = getBehaviorRecords(undefined, user.schoolId);
+       const todayBehaviors = allBehaviors.filter(b => b.date === today);
+       setBehaviorStats({
+          positive: todayBehaviors.filter(b => b.type === 'positive').length,
+          negative: todayBehaviors.filter(b => b.type === 'negative').length
+       });
+
+       // Find Top Student
+       if (allBehaviors.length > 0) {
+          const studentScores: Record<string, number> = {};
+          allBehaviors.forEach(b => {
+             studentScores[b.studentId] = (studentScores[b.studentId] || 100) + b.points;
+          });
+          const topStudentId = Object.keys(studentScores).reduce((a, b) => studentScores[a] > studentScores[b] ? a : b);
+          const topStudent = students.find(s => s.id === topStudentId);
+          if (topStudent) {
+             setTopBehaviorStudent({ name: topStudent.name, score: studentScores[topStudentId] });
+          }
+       }
     }
-  }, [filteredRecords]);
+  }, [filteredRecords, students]);
 
   useEffect(() => {
     // Load Daily Insight once
@@ -141,49 +166,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
 
   // Only show pie if there is data
   const hasTodayData = todayRecords.length > 0;
-
-  const { riskStudents, topStudents, recentExceptions } = useMemo(() => {
-    const risk: { student: Student, rate: number }[] = [];
-    const top: { student: Student, rate: number }[] = [];
-
-    filteredStudents.forEach(student => {
-        const studentRecords = filteredRecords.filter(r => r.studentId === student.id);
-        if (studentRecords.length === 0) return;
-
-        const present = studentRecords.filter(r => r.status === AttendanceStatus.PRESENT).length;
-        const late = studentRecords.filter(r => r.status === AttendanceStatus.LATE).length;
-        const excused = studentRecords.filter(r => r.status === AttendanceStatus.EXCUSED).length;
-        const total = studentRecords.length;
-        
-        const rate = Math.round(((present + excused + (late * 0.5)) / total) * 100);
-
-        if (rate < settings.attendanceThreshold) {
-            risk.push({ student, rate });
-        } else if (rate >= 95 && total >= 3) { // Require at least 3 records to be a top student
-            top.push({ student, rate });
-        }
-    });
-
-    // Recent Exceptions (Excused or Absent in the last 3 days)
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
-
-    const exceptions = filteredRecords
-      .filter(r => (r.status === AttendanceStatus.EXCUSED || r.status === AttendanceStatus.ABSENT || r.status === AttendanceStatus.LATE) && r.date >= threeDaysAgoStr)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 7) // Limit to 7 items
-      .map(r => ({
-        ...r,
-        student: filteredStudents.find(s => s.id === r.studentId)
-      }));
-
-    return { 
-        riskStudents: risk.sort((a, b) => a.rate - b.rate).slice(0, 5),
-        topStudents: top.sort((a, b) => b.rate - a.rate).slice(0, 5), // Top 5
-        recentExceptions: exceptions
-    };
-  }, [filteredStudents, filteredRecords, settings.attendanceThreshold]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -309,29 +291,66 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
         </div>
       </div>
 
-      {/* Upcoming Events List (If Any) */}
-      {upcomingEvents.length > 0 && (
-         <div className="bg-gradient-to-r from-pink-50 to-white border border-pink-100 rounded-xl p-4">
-            <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-               <CalendarIcon size={18} className="text-pink-500" />
-               الأحداث القادمة
+      {/* Events & Behavior Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         {/* Upcoming Events List */}
+         {upcomingEvents.length > 0 && (
+            <div className="bg-gradient-to-r from-pink-50 to-white border border-pink-100 rounded-xl p-4">
+               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                  <CalendarIcon size={18} className="text-pink-500" />
+                  الأحداث القادمة
+               </h3>
+               <div className="space-y-2">
+                  {upcomingEvents.map(event => (
+                     <div key={event.id} className="bg-white p-3 rounded-lg border border-pink-100 flex items-center gap-3">
+                        <div className={`w-2 h-10 rounded-full ${
+                           event.type === 'holiday' ? 'bg-red-400' : 
+                           event.type === 'exam' ? 'bg-amber-400' : 'bg-blue-400'
+                        }`}></div>
+                        <div>
+                           <div className="font-bold text-sm text-slate-800">{event.title}</div>
+                           <div className="text-xs text-slate-500" dir="ltr">{event.date}</div>
+                        </div>
+                     </div>
+                  ))}
+               </div>
+            </div>
+         )}
+
+         {/* Behavior Summary */}
+         <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between" onClick={() => onNavigate('leaderboard')}>
+            <h3 className="font-bold text-slate-800 mb-3 flex items-center justify-between">
+               <span className="flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> ملخص السلوك اليوم</span>
+               <span className="text-xs text-indigo-600 cursor-pointer hover:underline">عرض اللوحة</span>
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-               {upcomingEvents.map(event => (
-                  <div key={event.id} className="bg-white p-3 rounded-lg border border-pink-100 flex items-center gap-3">
-                     <div className={`w-2 h-10 rounded-full ${
-                        event.type === 'holiday' ? 'bg-red-400' : 
-                        event.type === 'exam' ? 'bg-amber-400' : 'bg-blue-400'
-                     }`}></div>
+            
+            <div className="flex gap-4 mb-4">
+               <div className="flex-1 bg-green-50 rounded-lg p-3 text-center border border-green-100">
+                  <div className="text-green-600 mb-1 flex justify-center"><ThumbsUp size={20} /></div>
+                  <div className="text-2xl font-bold text-green-700">{behaviorStats.positive}</div>
+                  <div className="text-xs text-green-600">إيجابي</div>
+               </div>
+               <div className="flex-1 bg-red-50 rounded-lg p-3 text-center border border-red-100">
+                  <div className="text-red-600 mb-1 flex justify-center"><ThumbsDown size={20} /></div>
+                  <div className="text-2xl font-bold text-red-700">{behaviorStats.negative}</div>
+                  <div className="text-xs text-red-600">سلبي</div>
+               </div>
+            </div>
+
+            {topBehaviorStudent && (
+               <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                     <div className="bg-yellow-100 p-1.5 rounded-full"><Star size={16} className="text-yellow-600" /></div>
                      <div>
-                        <div className="font-bold text-sm text-slate-800">{event.title}</div>
-                        <div className="text-xs text-slate-500" dir="ltr">{event.date}</div>
+                        <div className="text-xs text-yellow-800 font-bold">نجم السلوك</div>
+                        <div className="text-sm font-bold text-slate-800">{topBehaviorStudent.name}</div>
                      </div>
                   </div>
-               ))}
-            </div>
+                  <div className="text-xl font-black text-yellow-600 dir-ltr">{topBehaviorStudent.score}</div>
+               </div>
+            )}
          </div>
-      )}
+      </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

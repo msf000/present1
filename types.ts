@@ -1,4 +1,3 @@
-
 export enum AttendanceStatus {
   PRESENT = 'present',
   ABSENT = 'absent',
@@ -9,25 +8,25 @@ export enum AttendanceStatus {
 export interface School {
   id: string;
   name: string;
-  isActive: boolean; // Subscription status
-  principalId: string; // The user ID of the school manager
+  isActive: boolean;
+  principalId: string;
   subscriptionEndDate: string;
   studentCount: number;
 }
 
 export interface Student {
   id: string;
-  schoolId: string; // Link student to a specific school
+  schoolId: string;
   name: string;
   grade: string;
-  parentPhone?: string; // Contact number for WhatsApp
+  parentPhone?: string;
 }
 
 export interface AttendanceRecord {
   id: string;
   studentId: string;
-  schoolId: string; // Useful for quick filtering
-  date: string; // YYYY-MM-DD
+  schoolId: string;
+  date: string;
   status: AttendanceStatus;
   note?: string;
 }
@@ -36,21 +35,88 @@ export interface LeaveRequest {
   id: string;
   studentId: string;
   schoolId: string;
-  date: string; // The date of absence
+  date: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
-  requestDate: string; // When the request was made
+  requestDate: string;
   parentName?: string;
-  type: 'absence' | 'early_exit'; // New field
-  exitTime?: string; // Required if type is early_exit
-  pickupPerson?: string; // Name of person picking up the student
+  type: 'absence' | 'early_exit';
+  exitTime?: string;
+  pickupPerson?: string;
+  actualExitTime?: string;
+}
+
+export interface BehaviorRecord {
+  id: string;
+  studentId: string;
+  schoolId: string;
+  type: 'positive' | 'negative';
+  category: string;
+  reason: string;
+  points: number;
+  date: string;
+  recordedBy: string;
+}
+
+export interface Subject {
+  id: string;
+  schoolId: string;
+  name: string;
+  color: string;
+  teacherName?: string;
+}
+
+export interface ClassSchedule {
+  id: string;
+  schoolId: string;
+  grade: string;
+  schedule: {
+    [day: string]: { 
+      [period: number]: string;
+    }
+  };
+}
+
+// --- Health Types ---
+export interface HealthRecord {
+  studentId: string;
+  bloodType?: string;
+  chronicConditions: string[]; // e.g. ['Asthma', 'Diabetes']
+  allergies: string[];
+  emergencyContact?: string;
+  notes?: string;
+}
+
+export interface ClinicVisit {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  reason: string;
+  treatment: string; // Action taken
+  outcome: 'returned_to_class' | 'sent_home' | 'hospital';
+  nurseName?: string;
+}
+
+// --- Visitor Types ---
+export interface VisitorRecord {
+  id: string;
+  schoolId: string;
+  name: string;
+  idNumber?: string;
+  visitReason: string;
+  personToVisit?: string;
+  checkInTime: string; // ISO String
+  checkOutTime?: string; // ISO String
+  status: 'active' | 'completed';
 }
 
 export interface SchoolEvent {
   id: string;
   schoolId: string;
   title: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   type: 'holiday' | 'exam' | 'activity' | 'meeting';
   description?: string;
 }
@@ -66,24 +132,23 @@ export interface DailyStat {
 export interface AppSettings {
   attendanceThreshold: number;
   schoolName?: string;
-  classes?: string[]; // Defined list of grades/classes
+  classes?: string[];
   whatsappTemplates?: {
     absent: string;
     late: string;
   };
 }
 
-// User Roles
-export type UserRole = 'general_manager' | 'admin' | 'principal' | 'vice_principal' | 'staff' | 'teacher' | 'parent' | 'student';
+export type UserRole = 'general_manager' | 'admin' | 'principal' | 'vice_principal' | 'staff' | 'teacher' | 'parent' | 'student' | 'nurse' | 'security';
 
 export interface User {
   id: string;
   username: string;
   name: string;
   role: UserRole;
-  schoolId?: string; // Users belong to a school (except general_manager)
+  schoolId?: string;
   relatedStudentId?: string;
-  managedSchoolIds?: string[]; // For principals who manage multiple schools
+  managedSchoolIds?: string[];
 }
 
 export interface SystemLog {

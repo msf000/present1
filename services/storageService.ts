@@ -1,4 +1,4 @@
-import { Student, AttendanceRecord, AttendanceStatus, AppSettings, User, School, SystemLog, LeaveRequest, SchoolEvent } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, AppSettings, User, School, SystemLog, LeaveRequest, SchoolEvent, BehaviorRecord, Subject, ClassSchedule, HealthRecord, ClinicVisit, VisitorRecord } from '../types';
 
 const STORAGE_KEYS = {
   SCHOOLS: 'attendance_app_schools',
@@ -11,6 +11,12 @@ const STORAGE_KEYS = {
   IMPERSONATOR: 'attendance_app_impersonator',
   LEAVE_REQUESTS: 'attendance_app_leave_requests',
   EVENTS: 'attendance_app_events',
+  BEHAVIOR: 'attendance_app_behavior',
+  SUBJECTS: 'attendance_app_subjects',
+  SCHEDULES: 'attendance_app_schedules',
+  HEALTH_RECORDS: 'attendance_app_health_records',
+  CLINIC_VISITS: 'attendance_app_clinic_visits',
+  VISITORS: 'attendance_app_visitors',
 };
 
 // --- Helper for Logging ---
@@ -39,8 +45,6 @@ export const addSystemLog = (action: string, details: string, type: 'info' | 'wa
 export const getSystemActivityLogs = (): SystemLog[] => {
   const data = localStorage.getItem(STORAGE_KEYS.LOGS);
   if (data) return JSON.parse(data);
-
-  // Return some initial logs if empty
   return [];
 };
 
@@ -55,57 +59,29 @@ export const generateMockData = () => {
       principalId: 'u2', 
       subscriptionEndDate: '2025-12-31',
       studentCount: 3
-    },
-    { 
-      id: 's2', 
-      name: 'مدرسة الرواد الأهلية', 
-      isActive: false, // Inactive subscription
-      principalId: 'u8', 
-      subscriptionEndDate: '2023-01-01',
-      studentCount: 2
-    },
-    { 
-      id: 's3', 
-      name: 'مدارس النخبة العالمية', 
-      isActive: true, 
-      principalId: '', 
-      subscriptionEndDate: '2026-06-30',
-      studentCount: 0
     }
   ];
 
   // 2. Create Users
   const users: User[] = [
-    // System Level
     { id: 'u0', username: 'sysadmin', name: 'مدير النظام (Super Admin)', role: 'general_manager' },
-    
-    // School 1 Users
     { id: 'u2', username: 'principal1', name: 'أ. خالد (مدير المستقبل)', role: 'principal', schoolId: 's1', managedSchoolIds: ['s1'] },
     { id: 'u4', username: 'teacher1', name: 'أ. محمد (معلم)', role: 'teacher', schoolId: 's1' },
-    
-    // School 2 Users
-    { id: 'u8', username: 'principal2', name: 'أ. فهد (مدير الرواد)', role: 'principal', schoolId: 's2', managedSchoolIds: ['s2'] },
-
-    // Parents/Students
+    { id: 'u9', username: 'security1', name: 'حارس الأمن', role: 'security', schoolId: 's1' },
+    { id: 'u10', username: 'nurse1', name: 'الممرضة سارة', role: 'nurse', schoolId: 's1' },
     { id: 'u6', username: 'parent', name: 'ولي أمر أحمد', role: 'parent', schoolId: 's1', relatedStudentId: '1' },
   ];
 
   // 3. Create Students
   const students: Student[] = [
-    // School 1 Students
     { id: '1', schoolId: 's1', name: 'أحمد محمد', grade: 'العاشر' },
     { id: '2', schoolId: 's1', name: 'سارة علي', grade: 'العاشر' },
     { id: '3', schoolId: 's1', name: 'خالد عمر', grade: 'الحادي عشر' },
-    
-    // School 2 Students
-    { id: '4', schoolId: 's2', name: 'ليلى حسن', grade: 'الثاني عشر' },
-    { id: '5', schoolId: 's2', name: 'عمر يوسف', grade: 'العاشر' },
   ];
 
   // 4. Create Records
   const records: AttendanceRecord[] = [];
   const today = new Date();
-  
   for (let i = 0; i < 7; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() - i);
@@ -137,39 +113,50 @@ export const generateMockData = () => {
        requestDate: today.toISOString(),
        parentName: 'ولي أمر أحمد',
        type: 'absence'
-    },
-    {
-       id: 'lr2',
-       studentId: '2',
-       schoolId: 's1',
-       date: new Date(today.getTime() - 86400000).toISOString().split('T')[0],
-       reason: 'موعد أسنان',
-       status: 'approved',
-       requestDate: new Date(today.getTime() - 172800000).toISOString(),
-       parentName: 'والدة سارة',
-       type: 'early_exit',
-       exitTime: '11:30',
-       pickupPerson: 'السائق الخاص'
     }
   ];
 
-  // 6. Create Mock Events
-  const events: SchoolEvent[] = [
+  // 6. Create Clinic Data
+  const healthRecords: HealthRecord[] = [
+    { studentId: '1', bloodType: 'O+', chronicConditions: ['ربو'], allergies: ['غبار'], emergencyContact: '0500000000' },
+    { studentId: '2', bloodType: 'A-', chronicConditions: [], allergies: ['فول سوداني'], emergencyContact: '0555555555' }
+  ];
+
+  const clinicVisits: ClinicVisit[] = [
+    { 
+      id: 'v1', 
+      schoolId: 's1', 
+      studentId: '1', 
+      date: today.toISOString().split('T')[0], 
+      time: '09:30', 
+      reason: 'صداع ودوار', 
+      treatment: 'مسكن (Panadol) وراحة لمدة 15 دقيقة', 
+      outcome: 'returned_to_class',
+      nurseName: 'الممرضة سارة'
+    }
+  ];
+
+  // 7. Create Visitor Data
+  const visitors: VisitorRecord[] = [
     {
-      id: 'ev1',
+      id: 'vis1',
       schoolId: 's1',
-      title: 'اجتماع أولياء الأمور',
-      date: new Date(today.getTime() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
-      type: 'meeting',
-      description: 'مناقشة نتائج الفصل الأول'
+      name: 'عبدالله العتيبي (ولي أمر)',
+      idNumber: '1020304050',
+      visitReason: 'مقابلة المدير',
+      personToVisit: 'أ. خالد',
+      checkInTime: new Date(today.getTime() - 3600000).toISOString(), // 1 hour ago
+      status: 'active'
     },
     {
-      id: 'ev2',
+      id: 'vis2',
       schoolId: 's1',
-      title: 'اختبار الرياضيات النصفي',
-      date: new Date(today.getTime() + 86400000 * 5).toISOString().split('T')[0], // 5 days from now
-      type: 'exam',
-      description: 'الصف العاشر والحادي عشر'
+      name: 'شركة الصيانة',
+      visitReason: 'صيانة المكيفات',
+      personToVisit: 'الإدارة',
+      checkInTime: new Date(today.getTime() - 7200000).toISOString(), // 2 hours ago
+      checkOutTime: new Date(today.getTime() - 3600000).toISOString(),
+      status: 'completed'
     }
   ];
 
@@ -178,435 +165,270 @@ export const generateMockData = () => {
   localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
   localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(leaveRequests));
-  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
+  localStorage.setItem(STORAGE_KEYS.HEALTH_RECORDS, JSON.stringify(healthRecords));
+  localStorage.setItem(STORAGE_KEYS.CLINIC_VISITS, JSON.stringify(clinicVisits));
+  localStorage.setItem(STORAGE_KEYS.VISITORS, JSON.stringify(visitors));
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({ 
     attendanceThreshold: 75,
     classes: ['العاشر', 'الحادي عشر', 'الثاني عشر'] 
   }));
   
-  // Initial Log
   addSystemLog('تهيئة النظام', 'تم إنشاء البيانات التجريبية للنظام', 'info');
 };
 
-// --- School Management (For System Admin) ---
-export const getSchools = (): School[] => {
-  const data = localStorage.getItem(STORAGE_KEYS.SCHOOLS);
-  return data ? JSON.parse(data) : [];
-};
-
+// --- Basic Getters/Setters ---
+export const getSchools = (): School[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.SCHOOLS) || '[]');
 export const saveSchool = (school: School) => {
   const schools = getSchools();
   const index = schools.findIndex(s => s.id === school.id);
-  
-  let actionDetails = '';
-  if (index >= 0) {
-    schools[index] = school;
-    actionDetails = `تحديث بيانات مدرسة: ${school.name}`;
-  } else {
-    schools.push(school);
-    actionDetails = `إضافة مدرسة جديدة: ${school.name}`;
-  }
-  
+  if (index >= 0) schools[index] = school; else schools.push(school);
   localStorage.setItem(STORAGE_KEYS.SCHOOLS, JSON.stringify(schools));
-  addSystemLog(index >= 0 ? 'تعديل مدرسة' : 'إضافة مدرسة', actionDetails, 'info');
 };
-
+export const getSchoolById = (id: string) => getSchools().find(s => s.id === id);
 export const toggleSchoolSubscription = (schoolId: string) => {
   const schools = getSchools();
   const school = schools.find(s => s.id === schoolId);
   if (school) {
     school.isActive = !school.isActive;
     localStorage.setItem(STORAGE_KEYS.SCHOOLS, JSON.stringify(schools));
-    
-    addSystemLog(
-        'تغيير حالة اشتراك', 
-        `تم ${school.isActive ? 'تفعيل' : 'إيقاف'} اشتراك مدرسة: ${school.name}`, 
-        school.isActive ? 'info' : 'warning'
-    );
   }
 };
-
-export const getSchoolById = (id: string): School | undefined => {
-  return getSchools().find(s => s.id === id);
-};
-
-// --- Student Management (Filtered by School) ---
 
 export const getStudents = (schoolId?: string): Student[] => {
-  const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-  let allStudents: Student[] = data ? JSON.parse(data) : [];
-  
-  if (schoolId) {
-    return allStudents.filter(s => s.schoolId === schoolId);
-  }
-  return allStudents;
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+  return schoolId ? all.filter((s: Student) => s.schoolId === schoolId) : all;
 };
-
 export const saveStudent = (student: Student) => {
-  const allStudents = getStudents(); // Get all to save properly
-  const index = allStudents.findIndex(s => s.id === student.id);
-  
-  let updatedStudents = [...allStudents];
-  if (index >= 0) {
-    updatedStudents[index] = student;
-  } else {
-    updatedStudents.push(student);
-  }
-  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+  const all = getStudents();
+  const index = all.findIndex(s => s.id === student.id);
+  if (index >= 0) all[index] = student; else all.push(student);
+  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(all));
 };
-
-export const saveStudents = (newStudents: Student[]) => {
-  const allStudents = getStudents();
-  const updatedStudents = [...allStudents, ...newStudents];
-  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+export const saveStudents = (students: Student[]) => {
+  const all = getStudents();
+  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify([...all, ...students]));
 };
-
-export const updateStudent = (updatedStudent: Student) => {
-  saveStudent(updatedStudent);
-};
-
+export const updateStudent = (student: Student) => saveStudent(student);
 export const deleteStudent = (id: string) => {
-  const allStudents = getStudents();
-  const student = allStudents.find(s => s.id === id);
-  const filtered = allStudents.filter(s => s.id !== id);
-  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(filtered));
-  
-  if (student) {
-     const user = getCurrentUser();
-     if (user && (user.role === 'principal' || user.role === 'admin')) {
-        // Log deletion
-     }
-  }
+  const all = getStudents();
+  localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(all.filter(s => s.id !== id)));
 };
-
-// --- Attendance Management (Filtered by School) ---
 
 export const getAttendanceRecords = (schoolId?: string): AttendanceRecord[] => {
-  const data = localStorage.getItem(STORAGE_KEYS.RECORDS);
-  let allRecords: AttendanceRecord[] = data ? JSON.parse(data) : [];
-  
-  if (schoolId) {
-    return allRecords.filter(r => r.schoolId === schoolId);
-  }
-  return allRecords;
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.RECORDS) || '[]');
+  return schoolId ? all.filter((r: AttendanceRecord) => r.schoolId === schoolId) : all;
 };
-
 export const saveAttendance = (newRecords: AttendanceRecord[]) => {
-  const allRecords = getAttendanceRecords();
-  // Filter out records that are being replaced (same student, same date)
-  const filteredRecords = allRecords.filter(
-    r => !newRecords.some(nr => nr.studentId === r.studentId && nr.date === r.date)
-  );
-  localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify([...filteredRecords, ...newRecords]));
+  const all = getAttendanceRecords();
+  const filtered = all.filter(r => !newRecords.some(nr => nr.studentId === r.studentId && nr.date === r.date));
+  localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify([...filtered, ...newRecords]));
 };
+export const getRecordsByDate = (date: string, schoolId?: string) => getAttendanceRecords(schoolId).filter(r => r.date === date);
 
-export const getRecordsByDate = (date: string, schoolId?: string): AttendanceRecord[] => {
-  const records = getAttendanceRecords(schoolId);
-  return records.filter(r => r.date === date);
-};
-
-// --- Leave Requests Management ---
 export const getLeaveRequests = (schoolId?: string): LeaveRequest[] => {
-  const data = localStorage.getItem(STORAGE_KEYS.LEAVE_REQUESTS);
-  let allRequests: LeaveRequest[] = data ? JSON.parse(data) : [];
-  
-  if (schoolId) {
-    return allRequests.filter(r => r.schoolId === schoolId);
-  }
-  return allRequests;
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.LEAVE_REQUESTS) || '[]');
+  return schoolId ? all.filter((r: LeaveRequest) => r.schoolId === schoolId) : all;
 };
-
-export const saveLeaveRequest = (request: LeaveRequest) => {
-  const allRequests = getLeaveRequests(); // Get all
-  const index = allRequests.findIndex(r => r.id === request.id);
-  
-  let updatedRequests = [...allRequests];
-  if (index >= 0) {
-    updatedRequests[index] = request;
-  } else {
-    updatedRequests.push(request);
-  }
-  
-  localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(updatedRequests));
-  
-  if (index === -1) {
-     addSystemLog('طلب استئذان', `تم تقديم طلب استئذان جديد للطالب ID: ${request.studentId}`, 'info');
-  }
+export const saveLeaveRequest = (req: LeaveRequest) => {
+  const all = getLeaveRequests();
+  const idx = all.findIndex(r => r.id === req.id);
+  if (idx >= 0) all[idx] = req; else all.push(req);
+  localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(all));
 };
-
 export const updateLeaveRequestStatus = (id: string, status: 'approved' | 'rejected') => {
-   const requests = getLeaveRequests();
-   const request = requests.find(r => r.id === id);
-   
-   if (request) {
-      request.status = status;
-      // Save updated list
-      const updatedRequests = requests.map(r => r.id === id ? request : r);
-      localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(updatedRequests));
-      
-      // If approved AND it is a FULL absence, automatically create an attendance record
-      if (status === 'approved' && request.type === 'absence') {
-         const newRecord: AttendanceRecord = {
-            id: `${request.date}-${request.studentId}`,
-            studentId: request.studentId,
-            schoolId: request.schoolId,
-            date: request.date,
-            status: AttendanceStatus.EXCUSED,
-            note: `استئذان: ${request.reason}`
-         };
-         saveAttendance([newRecord]);
-         addSystemLog('الموافقة على استئذان', `تم الموافقة على طلب استئذان وتسجيل عذر للطالب`, 'success');
-      } else {
-         addSystemLog('تحديث حالة استئذان', `تم تحديث حالة طلب الاستئذان إلى ${status}`, 'info');
-      }
-      return true;
-   }
-   return false;
+  const all = getLeaveRequests();
+  const req = all.find(r => r.id === id);
+  if (req) {
+    req.status = status;
+    localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(all));
+    if (status === 'approved' && req.type === 'absence') {
+       saveAttendance([{
+         id: `${req.date}-${req.studentId}`,
+         studentId: req.studentId,
+         schoolId: req.schoolId,
+         date: req.date,
+         status: AttendanceStatus.EXCUSED,
+         note: `استئذان: ${req.reason}`
+       }]);
+    }
+  }
 };
 
-// --- Events Management ---
+export const verifyGatePass = (qrCode: string) => {
+  if (!qrCode.startsWith('GATEPASS:')) return { valid: false, error: 'رمز غير صالح' };
+  const id = qrCode.split(':')[1];
+  const req = getLeaveRequests().find(r => r.id === id);
+  if (!req) return { valid: false, error: 'التصريح غير موجود' };
+  if (req.status !== 'approved') return { valid: false, error: 'التصريح غير معتمد' };
+  if (req.date !== new Date().toISOString().split('T')[0]) return { valid: false, error: 'تاريخ التصريح غير مطابق لليوم' };
+  if (req.actualExitTime) return { valid: false, error: 'تم استخدام التصريح مسبقاً' };
+  return { valid: true, request: req, student: getStudents().find(s => s.id === req.studentId) };
+};
+export const markGatePassUsed = (id: string) => {
+  const all = getLeaveRequests();
+  const req = all.find(r => r.id === id);
+  if (req) {
+    req.actualExitTime = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(all));
+    addSystemLog('خروج', `خروج طالب بتصريح رقم ${id}`, 'success');
+  }
+};
+
+// --- Clinic Logic ---
+export const getHealthRecord = (studentId: string): HealthRecord | null => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.HEALTH_RECORDS) || '[]');
+  return all.find((r: HealthRecord) => r.studentId === studentId) || null;
+};
+export const saveHealthRecord = (record: HealthRecord) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.HEALTH_RECORDS) || '[]');
+  const idx = all.findIndex((r: HealthRecord) => r.studentId === record.studentId);
+  if (idx >= 0) all[idx] = record; else all.push(record);
+  localStorage.setItem(STORAGE_KEYS.HEALTH_RECORDS, JSON.stringify(all));
+};
+export const getClinicVisits = (schoolId?: string, studentId?: string): ClinicVisit[] => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.CLINIC_VISITS) || '[]');
+  let filtered = schoolId ? all.filter((v: ClinicVisit) => v.schoolId === schoolId) : all;
+  if (studentId) filtered = filtered.filter((v: ClinicVisit) => v.studentId === studentId);
+  return filtered.sort((a: ClinicVisit, b: ClinicVisit) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime());
+};
+export const saveClinicVisit = (visit: ClinicVisit) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.CLINIC_VISITS) || '[]');
+  all.push(visit);
+  localStorage.setItem(STORAGE_KEYS.CLINIC_VISITS, JSON.stringify(all));
+  addSystemLog('عيادة', `زيارة عيادة للطالب ${visit.studentId}`, 'info');
+};
+
+// --- Visitor Logic ---
+export const getVisitors = (schoolId: string): VisitorRecord[] => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.VISITORS) || '[]');
+  return all.filter((v: VisitorRecord) => v.schoolId === schoolId);
+};
+export const saveVisitor = (visitor: VisitorRecord) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.VISITORS) || '[]');
+  const idx = all.findIndex((v: VisitorRecord) => v.id === visitor.id);
+  if (idx >= 0) all[idx] = visitor; else all.push(visitor);
+  localStorage.setItem(STORAGE_KEYS.VISITORS, JSON.stringify(all));
+};
+
+// --- Other Services (Events, Behavior, Subjects, Schedule) ---
 export const getEvents = (schoolId?: string): SchoolEvent[] => {
-  const data = localStorage.getItem(STORAGE_KEYS.EVENTS);
-  let allEvents: SchoolEvent[] = data ? JSON.parse(data) : [];
-  
-  if (schoolId) {
-    return allEvents.filter(e => e.schoolId === schoolId);
-  }
-  return allEvents;
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.EVENTS) || '[]');
+  return schoolId ? all.filter((e: SchoolEvent) => e.schoolId === schoolId) : all;
+};
+export const saveEvent = (e: SchoolEvent) => {
+  const all = getEvents(); const idx = all.findIndex(ev => ev.id === e.id);
+  if(idx >= 0) all[idx] = e; else all.push(e);
+  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(all));
+};
+export const deleteEvent = (id: string) => localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(getEvents().filter(e => e.id !== id)));
+export const saveEvents = (evs: SchoolEvent[]) => localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify([...getEvents(), ...evs]));
+
+export const getBehaviorRecords = (studentId?: string, schoolId?: string): BehaviorRecord[] => {
+  let all = JSON.parse(localStorage.getItem(STORAGE_KEYS.BEHAVIOR) || '[]');
+  if(studentId) all = all.filter((r: BehaviorRecord) => r.studentId === studentId);
+  if(schoolId) all = all.filter((r: BehaviorRecord) => r.schoolId === schoolId);
+  return all;
+};
+export const saveBehaviorRecord = (r: BehaviorRecord) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.BEHAVIOR) || '[]');
+  all.push(r);
+  localStorage.setItem(STORAGE_KEYS.BEHAVIOR, JSON.stringify(all));
 };
 
-export const saveEvent = (event: SchoolEvent) => {
-  const allEvents = getEvents(); // Get all
-  const index = allEvents.findIndex(e => e.id === event.id);
-  
-  let updatedEvents = [...allEvents];
-  if (index >= 0) {
-    updatedEvents[index] = event;
-  } else {
-    updatedEvents.push(event);
-  }
-  
-  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updatedEvents));
+export const getSubjects = (schoolId: string): Subject[] => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+  return all.filter((s: Subject) => s.schoolId === schoolId);
+};
+export const saveSubject = (s: Subject) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+  all.push(s);
+  localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(all));
+};
+export const deleteSubject = (id: string) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+  localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(all.filter((s: Subject) => s.id !== id)));
 };
 
-export const deleteEvent = (eventId: string) => {
-  const allEvents = getEvents();
-  const filtered = allEvents.filter(e => e.id !== eventId);
-  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(filtered));
+export const getSchedule = (schoolId: string, grade: string): ClassSchedule | null => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.SCHEDULES) || '[]');
+  return all.find((s: ClassSchedule) => s.schoolId === schoolId && s.grade === grade) || null;
+};
+export const saveSchedule = (s: ClassSchedule) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.SCHEDULES) || '[]');
+  const idx = all.findIndex((sch: ClassSchedule) => sch.id === s.id);
+  if(idx >= 0) all[idx] = s; else all.push(s);
+  localStorage.setItem(STORAGE_KEYS.SCHEDULES, JSON.stringify(all));
 };
 
-export const saveEvents = (newEvents: SchoolEvent[]) => {
-  const allEvents = getEvents();
-  const updatedEvents = [...allEvents, ...newEvents];
-  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updatedEvents));
-};
-
-
-// --- Settings ---
-export const getSettings = (): AppSettings => {
-  const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-  const settings = data ? JSON.parse(data) : { attendanceThreshold: 75 };
-  
-  // Ensure defaults for templates if they don't exist
-  if (!settings.whatsappTemplates) {
-    settings.whatsappTemplates = {
-      absent: 'السلام عليكم ولي أمر الطالب/ة {name}، نفيدكم بغياب ابنكم/ابنتكم عن المدرسة اليوم {date}. يرجى تزويدنا بسبب الغياب للاطمئنان.',
-      late: 'السلام عليكم ولي أمر الطالب/ة {name}، نفيدكم بتأخر ابنكم/ابنتكم عن الطابور الصباحي اليوم {date}. نأمل الحرص على الحضور مبكراً.'
-    };
-  }
-  
-  return settings;
-};
-
-export const saveSettings = (settings: AppSettings, schoolId?: string) => {
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-  
-  if (schoolId && settings.schoolName) {
+// --- General ---
+export const getSettings = (): AppSettings => JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{"attendanceThreshold":75}');
+export const saveSettings = (s: AppSettings, schoolId?: string) => {
+  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(s));
+  if(schoolId && s.schoolName) {
     const schools = getSchools();
-    const schoolIndex = schools.findIndex(s => s.id === schoolId);
-    if (schoolIndex >= 0) {
-      if (schools[schoolIndex].name !== settings.schoolName) {
-        schools[schoolIndex].name = settings.schoolName;
-        localStorage.setItem(STORAGE_KEYS.SCHOOLS, JSON.stringify(schools));
-        addSystemLog('تحديث بيانات المدرسة', `تم تغيير اسم المدرسة إلى: ${settings.schoolName}`, 'warning');
-      }
-    }
-  }
-
-  addSystemLog('تحديث إعدادات', 'تم تحديث إعدادات النظام', 'info');
-};
-
-// --- Backups (Global) ---
-export const createBackup = () => {
-  const data = {
-    schools: getSchools(),
-    students: getStudents(),
-    records: getAttendanceRecords(),
-    settings: getSettings(),
-    users: getUsers(),
-    leaveRequests: getLeaveRequests(),
-    events: getEvents(),
-    backupDate: new Date().toISOString(),
-    version: '2.1'
-  };
-  addSystemLog('نسخ احتياطي', 'تم إنشاء نسخة احتياطية من النظام', 'info');
-  return JSON.stringify(data);
-};
-
-export const restoreBackup = (jsonString: string): boolean => {
-  try {
-    const data = JSON.parse(jsonString);
-    if (data.schools) localStorage.setItem(STORAGE_KEYS.SCHOOLS, JSON.stringify(data.schools));
-    if (data.students) localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(data.students));
-    if (data.records) localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(data.records));
-    if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.settings));
-    if (data.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data.users));
-    if (data.leaveRequests) localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(data.leaveRequests));
-    if (data.events) localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(data.events));
-    
-    addSystemLog('استعادة نسخة', 'تم استعادة النظام من نسخة احتياطية', 'danger');
-    return true;
-  } catch (e) {
-    console.error('Failed to restore backup', e);
-    return false;
+    const sc = schools.find(x => x.id === schoolId);
+    if(sc) { sc.name = s.schoolName; localStorage.setItem(STORAGE_KEYS.SCHOOLS, JSON.stringify(schools)); }
   }
 };
 
-export const clearAllData = () => {
-  localStorage.clear();
+export const getUsers = (): User[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+export const saveUser = (u: User) => {
+  const all = getUsers(); const idx = all.findIndex(us => us.id === u.id);
+  if(idx >= 0) all[idx] = u; else all.push(u);
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(all));
 };
-
-export const exportToCSV = (students: Student[], records: AttendanceRecord[]) => {
-  const csvRows = [];
-  csvRows.push(['الاسم', 'الصف', 'التاريخ', 'الحالة', 'ملاحظات'].join(','));
-
-  records.forEach(record => {
-    const student = students.find(s => s.id === record.studentId);
-    if (student) {
-      const statusText = 
-        record.status === AttendanceStatus.PRESENT ? 'حاضر' :
-        record.status === AttendanceStatus.ABSENT ? 'غائب' :
-        record.status === AttendanceStatus.LATE ? 'متأخر' : 'بعذر';
-        
-      csvRows.push([
-        `"${student.name}"`,
-        `"${student.grade}"`,
-        record.date,
-        statusText,
-        `"${record.note || ''}"`
-      ].join(','));
-    }
-  });
-
-  const csvContent = '\uFEFF' + csvRows.join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", `attendance_export_${new Date().toISOString().split('T')[0]}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-// --- User Auth & Management ---
-export const getUsers = (): User[] => {
-  const data = localStorage.getItem(STORAGE_KEYS.USERS);
-  return data ? JSON.parse(data) : [];
-};
-
-export const saveUser = (user: User) => {
+export const deleteUser = (id: string) => localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(getUsers().filter(u => u.id !== id)));
+export const getCurrentUser = (): User | null => JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
+export const loginUser = (username: string) => {
   const users = getUsers();
-  const index = users.findIndex(u => u.id === user.id);
-  
-  let actionStr = '';
-  if (index >= 0) {
-    users[index] = user;
-    actionStr = `تحديث بيانات المستخدم: ${user.name}`;
-  } else {
-    users.push(user);
-    actionStr = `إضافة مستخدم جديد: ${user.name}`;
+  if(users.length === 0) generateMockData();
+  const user = getUsers().find(u => u.username.toLowerCase() === username.toLowerCase());
+  if(user) {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+    return { user };
   }
-  
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  addSystemLog(index >= 0 ? 'تعديل مستخدم' : 'إضافة مستخدم', actionStr, 'info');
+  return { user: null, error: 'Invalid username' };
 };
-
-export const deleteUser = (userId: string) => {
-   const users = getUsers();
-   const userToDelete = users.find(u => u.id === userId);
-   const filtered = users.filter(u => u.id !== userId);
-   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filtered));
-   
-   if (userToDelete) {
-      addSystemLog('حذف مستخدم', `تم حذف المستخدم: ${userToDelete.name} (${userToDelete.username})`, 'danger');
-   }
-};
-
-export const getImpersonator = (): User | null => {
-  const data = localStorage.getItem(STORAGE_KEYS.IMPERSONATOR);
-  return data ? JSON.parse(data) : null;
-};
-
-export const impersonateUser = (userId: string): boolean => {
-  const users = getUsers();
-  const targetUser = users.find(u => u.id === userId);
-  const currentUser = getCurrentUser();
-
-  if (targetUser && currentUser && currentUser.role === 'general_manager') {
-    localStorage.setItem(STORAGE_KEYS.IMPERSONATOR, JSON.stringify(currentUser));
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(targetUser));
-    
-    addSystemLog('دخول كـ (Impersonation)', `قام ${currentUser.name} بالدخول بحساب: ${targetUser.name}`, 'warning');
+export const logoutUser = () => { localStorage.removeItem(STORAGE_KEYS.CURRENT_USER); localStorage.removeItem(STORAGE_KEYS.IMPERSONATOR); };
+export const getImpersonator = () => JSON.parse(localStorage.getItem(STORAGE_KEYS.IMPERSONATOR) || 'null');
+export const impersonateUser = (id: string) => {
+  const user = getUsers().find(u => u.id === id);
+  const current = getCurrentUser();
+  if(user && current?.role === 'general_manager') {
+    localStorage.setItem(STORAGE_KEYS.IMPERSONATOR, JSON.stringify(current));
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
     return true;
   }
   return false;
 };
-
 export const stopImpersonation = () => {
-  const impersonator = getImpersonator();
-  if (impersonator) {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(impersonator));
+  const imp = getImpersonator();
+  if(imp) {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(imp));
     localStorage.removeItem(STORAGE_KEYS.IMPERSONATOR);
     return true;
   }
   return false;
 };
 
-export const loginUser = (username: string): { user: User | null, error?: string } => {
-  const users = getUsers();
-  let user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-  
-  if (!user && users.length === 0) {
-    generateMockData();
-    const newUsers = getUsers();
-    user = newUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
-  }
-
-  if (user) {
-    if (user.role !== 'general_manager' && user.schoolId) {
-      const school = getSchoolById(user.schoolId);
-      if (school && !school.isActive) {
-        return { user: null, error: 'عذراً، اشتراك هذه المدرسة غير مفعل. يرجى مراجعة إدارة النظام.' };
-      }
-    }
-
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-    if (user.role === 'general_manager') {
-       addSystemLog('تسجيل دخول', `تسجيل دخول بواسطة: ${user.name}`, 'info');
-    }
-    return { user };
-  }
-  return { user: null, error: 'اسم المستخدم غير صحيح' };
+export const clearAllData = () => localStorage.clear();
+export const createBackup = () => JSON.stringify(localStorage);
+export const restoreBackup = (data: string) => {
+  try {
+    const json = JSON.parse(data);
+    Object.keys(json).forEach(key => localStorage.setItem(key, json[key]));
+    return true;
+  } catch(e) { return false; }
 };
-
-export const logoutUser = () => {
-  localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-  localStorage.removeItem(STORAGE_KEYS.IMPERSONATOR);
-};
-
-export const getCurrentUser = (): User | null => {
-  const data = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-  return data ? JSON.parse(data) : null;
+export const exportToCSV = (students: Student[], records: AttendanceRecord[]) => {
+  // Simple CSV export logic kept minimal for space
+  const rows = [['Name', 'Grade', 'Date', 'Status']];
+  records.forEach(r => {
+    const s = students.find(st => st.id === r.studentId);
+    if(s) rows.push([s.name, s.grade, r.date, r.status]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'export.csv'; a.click();
 };

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, User, Search, Eye, Edit2, AlertTriangle, CheckCircle2, Upload, Filter, X, ArrowDownWideNarrow, CreditCard, QrCode, GraduationCap, Printer, Phone } from 'lucide-react';
+import { Plus, Trash2, User, Search, Eye, Edit2, AlertTriangle, CheckCircle2, Upload, Filter, X, ArrowDownWideNarrow, CreditCard, QrCode, GraduationCap, Printer, Phone, Star } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveStudent, saveStudents, deleteStudent, updateStudent } from '../services/storageService';
+import BehaviorModal from './BehaviorModal';
 
 interface StudentListProps {
   students: Student[];
@@ -32,6 +33,10 @@ const StudentList: React.FC<StudentListProps> = ({
   const [isIdCardOpen, setIsIdCardOpen] = useState(false);
   const [studentForIdCard, setStudentForIdCard] = useState<Student | null>(null);
   const [isPrintingAll, setIsPrintingAll] = useState(false);
+  
+  // Behavior Modal State
+  const [isBehaviorModalOpen, setIsBehaviorModalOpen] = useState(false);
+  const [studentForBehavior, setStudentForBehavior] = useState<Student | null>(null);
   
   const [importText, setImportText] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,6 +80,12 @@ const StudentList: React.FC<StudentListProps> = ({
     e.stopPropagation();
     setStudentForIdCard(student);
     setIsIdCardOpen(true);
+  };
+  
+  const handleOpenBehavior = (student: Student, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStudentForBehavior(student);
+    setIsBehaviorModalOpen(true);
   };
 
   const handlePrintAll = () => {
@@ -249,6 +260,17 @@ const StudentList: React.FC<StudentListProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Behavior Modal */}
+      {isBehaviorModalOpen && studentForBehavior && (
+         <BehaviorModal 
+            student={studentForBehavior}
+            onClose={() => setIsBehaviorModalOpen(false)}
+            onSave={() => {
+               // Optionally refresh logic if needed
+            }}
+         />
+      )}
+
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-800">قائمة الطلاب</h2>
         
@@ -392,6 +414,13 @@ const StudentList: React.FC<StudentListProps> = ({
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
+                         <button
+                          onClick={(e) => handleOpenBehavior(student, e)}
+                          className="p-2 text-slate-500 hover:bg-slate-100 hover:text-yellow-500 rounded-full transition-colors"
+                          title="سجل سلوك"
+                        >
+                          <Star size={18} />
+                        </button>
                          <button
                           onClick={(e) => handleOpenIdCard(student, e)}
                           className="p-2 text-slate-500 hover:bg-slate-100 hover:text-emerald-600 rounded-full transition-colors"
