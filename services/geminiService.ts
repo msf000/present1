@@ -484,6 +484,37 @@ export const generateSchoolLetter = async (
   }
 };
 
+export const generateBroadcastMessage = async (
+  topic: string,
+  targetAudience: string,
+  tone: 'formal' | 'friendly' | 'urgent'
+) => {
+  try {
+    const ai = getAiClient();
+    const prompt = `
+      صغ رسالة واتساب لأولياء الأمور.
+      الموضوع: ${topic}
+      الجمهور المستهدف: ${targetAudience}
+      النبرة: ${tone === 'formal' ? 'رسمية ومحترمة' : tone === 'friendly' ? 'ودودة ومشجعة' : 'عاجلة وهامة جداً'}
+      
+      التعليمات:
+      - الرسالة يجب أن تكون قصيرة ومناسبة للواتساب.
+      - استخدم الإيموجي المناسب.
+      - لا تضع مقدمات أو خواص (مثل "الموضوع:")، ابدأ بالتحية مباشرة.
+      - استخدم placeholders مثل {name} لاسم الطالب إذا لزم الأمر.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    return response.text;
+  } catch (error) {
+    return "عذراً، لم نتمكن من صياغة الرسالة.";
+  }
+};
+
 export const generateThemeImage = async (prompt: string) => {
   try {
     const ai = getAiClient();
@@ -532,5 +563,51 @@ export const generateDailyInsight = async (summaryData: any) => {
     return response.text;
   } catch (error) {
     return null;
+  }
+};
+
+export const suggestSchoolEvents = async (monthName: string, context: string) => {
+  try {
+    const ai = getAiClient();
+    const prompt = `
+      اقترح جدولاً للأحداث المدرسية لشهر ${monthName}.
+      سياق المدرسة: ${context}
+      
+      قم بإنشاء قائمة بـ 3-5 أحداث واقعية (اختبارات، اجتماعات، أنشطة).
+      
+      صيغة الإخراج المطلوبة JSON فقط:
+      [
+        {
+          "title": "عنوان الحدث",
+          "date": "YYYY-MM-DD", // استخدم السنة الحالية
+          "type": "exam" | "meeting" | "activity",
+          "description": "وصف مختصر"
+        }
+      ]
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              date: { type: Type.STRING },
+              type: { type: Type.STRING },
+              description: { type: Type.STRING }
+            }
+          }
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '[]');
+  } catch (error) {
+    return [];
   }
 };

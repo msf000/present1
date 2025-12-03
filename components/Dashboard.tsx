@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Users, CheckCircle, XCircle, Clock, BrainCircuit, FileDown, AlertTriangle, Star, PieChart as PieChartIcon, FileText, Activity, Filter, ArrowRight, ClipboardCheck, Medal, Trophy, FileSignature, Lightbulb } from 'lucide-react';
-import { Student, AttendanceRecord, AttendanceStatus, DailyStat, AppSettings } from '../types';
+import { Users, CheckCircle, XCircle, Clock, BrainCircuit, FileDown, AlertTriangle, Star, PieChart as PieChartIcon, FileText, Activity, Filter, ArrowRight, ClipboardCheck, Medal, Trophy, FileSignature, Lightbulb, Calendar as CalendarIcon } from 'lucide-react';
+import { Student, AttendanceRecord, AttendanceStatus, DailyStat, AppSettings, SchoolEvent } from '../types';
 import { analyzeAttendance, generateDailyInsight } from '../services/geminiService';
-import { exportToCSV, getLeaveRequests, getCurrentUser } from '../services/storageService';
+import { exportToCSV, getLeaveRequests, getCurrentUser, getEvents } from '../services/storageService';
 
 interface DashboardProps {
   students: Student[];
@@ -21,6 +21,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
   const [loadingAi, setLoadingAi] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [pendingLeaves, setPendingLeaves] = useState(0);
+  const [upcomingEvents, setUpcomingEvents] = useState<SchoolEvent[]>([]);
 
   // Filter Logic
   const uniqueGrades = useMemo(() => {
@@ -76,11 +77,20 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
     }
     setStats(last7Days);
 
-    // Get Pending Leaves
+    // Get Pending Leaves & Events
     const user = getCurrentUser();
     if (user?.schoolId) {
        const allLeaves = getLeaveRequests(user.schoolId);
        setPendingLeaves(allLeaves.filter(l => l.status === 'pending').length);
+       
+       // Get upcoming events
+       const allEvents = getEvents(user.schoolId);
+       const today = new Date().toISOString().split('T')[0];
+       const upcoming = allEvents
+          .filter(e => e.date >= today)
+          .sort((a,b) => a.date.localeCompare(b.date))
+          .slice(0, 3);
+       setUpcomingEvents(upcoming);
     }
   }, [filteredRecords]);
 
@@ -239,7 +249,19 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        {/* Pending Leaves Card - Only if > 0 or for consistency */}
+        {/* Events Widget */}
+        <div 
+          onClick={() => onNavigate('calendar')}
+          className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center cursor-pointer hover:border-indigo-300 transition-colors"
+        >
+          <div className="p-3 bg-pink-50 rounded-full text-pink-600 mb-2">
+            <CalendarIcon size={24} />
+          </div>
+          <p className="text-sm text-slate-500">الأحداث القادمة</p>
+          <p className="text-xl font-bold text-slate-800">{upcomingEvents.length}</p>
+        </div>
+
+        {/* Pending Leaves Card */}
         <div 
           onClick={() => onNavigate('leave-requests')}
           className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center cursor-pointer hover:border-indigo-300 transition-colors relative overflow-hidden"
@@ -252,14 +274,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
           <p className={`text-xl font-bold ${pendingLeaves > 0 ? 'text-red-600' : 'text-slate-800'}`}>
              {pendingLeaves > 0 ? `${pendingLeaves} معلق` : 'لا يوجد'}
           </p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
-          <div className="p-3 bg-blue-50 rounded-full text-blue-600 mb-2">
-            <Users size={24} />
-          </div>
-          <p className="text-sm text-slate-500">إجمالي الطلاب</p>
-          <p className="text-xl font-bold text-slate-800">{filteredStudents.length}</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
@@ -294,6 +308,30 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
           <p className="text-xl font-bold text-red-600">{absentCount}</p>
         </div>
       </div>
+
+      {/* Upcoming Events List (If Any) */}
+      {upcomingEvents.length > 0 && (
+         <div className="bg-gradient-to-r from-pink-50 to-white border border-pink-100 rounded-xl p-4">
+            <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+               <CalendarIcon size={18} className="text-pink-500" />
+               الأحداث القادمة
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+               {upcomingEvents.map(event => (
+                  <div key={event.id} className="bg-white p-3 rounded-lg border border-pink-100 flex items-center gap-3">
+                     <div className={`w-2 h-10 rounded-full ${
+                        event.type === 'holiday' ? 'bg-red-400' : 
+                        event.type === 'exam' ? 'bg-amber-400' : 'bg-blue-400'
+                     }`}></div>
+                     <div>
+                        <div className="font-bold text-sm text-slate-800">{event.title}</div>
+                        <div className="text-xs text-slate-500" dir="ltr">{event.date}</div>
+                     </div>
+                  </div>
+               ))}
+            </div>
+         </div>
+      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -383,96 +421,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
           </div>
         </div>
       )}
-
-      {/* Recent Activity & Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         {/* Recent Activity Feed */}
-         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-               <Activity size={20} className="text-indigo-500" />
-               سجل النشاط الحديث (أعذار وتأخيرات)
-            </h3>
-            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-               {recentExceptions.length > 0 ? (
-                 recentExceptions.map((record, idx) => (
-                   <div key={`${record.id}-${idx}`} className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => onNavigate('students')}>
-                      <div className={`mt-1 p-2 rounded-full ${
-                        record.status === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-600' : 
-                        record.status === AttendanceStatus.EXCUSED ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'
-                      }`}>
-                        {record.status === AttendanceStatus.ABSENT ? <XCircle size={14} /> : 
-                         record.status === AttendanceStatus.EXCUSED ? <FileText size={14} /> : <Clock size={14} />}
-                      </div>
-                      <div className="flex-1">
-                         <div className="flex justify-between items-start">
-                            <span className="font-bold text-slate-700">{record.student?.name}</span>
-                            <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">{record.date}</span>
-                         </div>
-                         <div className="text-sm text-slate-600 flex flex-wrap items-center gap-2 mt-1">
-                            <span className={`font-medium text-xs px-1.5 py-0.5 rounded ${
-                              record.status === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-700' : 
-                              record.status === AttendanceStatus.EXCUSED ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              {record.status === AttendanceStatus.ABSENT ? 'غائب' : 
-                               record.status === AttendanceStatus.EXCUSED ? 'عذر' : 'متأخر'}
-                            </span>
-                            <span className="text-slate-500 text-xs">
-                               {record.note ? `"${record.note}"` : (record.status === AttendanceStatus.ABSENT ? 'بدون ملاحظات' : '-')}
-                            </span>
-                         </div>
-                      </div>
-                   </div>
-                 ))
-               ) : (
-                 <p className="text-center text-slate-400 py-8">لا توجد نشاطات استثنائية حديثة</p>
-               )}
-            </div>
-         </div>
-
-         {/* Top Students / Leaderboard */}
-         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-               <Trophy size={20} className="text-yellow-500" />
-               لوحة الشرف (أوائل الطلبة)
-            </h3>
-            <div className="space-y-3">
-              {topStudents.length > 0 ? (
-                topStudents.map(({ student, rate }, index) => (
-                  <div 
-                    key={student.id} 
-                    className="flex items-center justify-between p-3 rounded-lg bg-yellow-50/50 border border-yellow-100 cursor-pointer hover:bg-yellow-50 transition-colors"
-                    onClick={() => onNavigate('students')}
-                  >
-                     <div className="flex items-center gap-4">
-                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${
-                         index === 0 ? 'bg-yellow-400 text-white' : 
-                         index === 1 ? 'bg-slate-300 text-slate-600' :
-                         index === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-500 border border-slate-200'
-                       }`}>
-                         {index + 1}
-                       </div>
-                       <div>
-                         <div className="font-bold text-slate-800">{student.name}</div>
-                         <div className="text-xs text-slate-500">{student.grade}</div>
-                       </div>
-                     </div>
-                     <div className="flex items-center gap-2">
-                        {index < 3 && <Medal size={16} className={index === 0 ? 'text-yellow-500' : index === 1 ? 'text-slate-400' : 'text-orange-400'} />}
-                        <div className="text-sm font-bold text-indigo-600 bg-white px-2 py-1 rounded border border-indigo-100">
-                          {rate}%
-                        </div>
-                     </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-slate-400 py-8 flex flex-col items-center">
-                    <Star size={32} className="text-slate-200 mb-2" />
-                    لا يوجد بيانات كافية لإظهار المتميزين بعد.
-                </p>
-              )}
-            </div>
-         </div>
-      </div>
 
       {/* AI Analysis Section */}
       <div className="bg-gradient-to-r from-indigo-50 to-white p-6 rounded-xl border border-indigo-100 shadow-sm print:hidden">

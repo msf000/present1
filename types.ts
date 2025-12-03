@@ -41,6 +41,18 @@ export interface LeaveRequest {
   status: 'pending' | 'approved' | 'rejected';
   requestDate: string; // When the request was made
   parentName?: string;
+  type: 'absence' | 'early_exit'; // New field
+  exitTime?: string; // Required if type is early_exit
+  pickupPerson?: string; // Name of person picking up the student
+}
+
+export interface SchoolEvent {
+  id: string;
+  schoolId: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  type: 'holiday' | 'exam' | 'activity' | 'meeting';
+  description?: string;
 }
 
 export interface DailyStat {

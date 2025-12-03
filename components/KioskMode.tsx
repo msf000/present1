@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, CheckCircle2, QrCode, User, Volume2, VolumeX, Maximize, Minimize, Clock } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveAttendance, getRecordsByDate } from '../services/storageService';
+import { generateSpeech, playRawAudio } from '../services/geminiService';
 
 interface KioskModeProps {
   students: Student[];
@@ -51,10 +52,10 @@ const KioskMode: React.FC<KioskModeProps> = ({ students, currentSchoolId, onBack
     }
   };
 
-  const playSuccessSound = (name: string) => {
+  const playSuccessSound = async (name: string) => {
     if (!soundEnabled) return;
     
-    // Simple beep
+    // 1. Immediate Beep for feedback
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
@@ -72,11 +73,15 @@ const KioskMode: React.FC<KioskModeProps> = ({ students, currentSchoolId, onBack
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + 0.1);
 
-    // Speak name
-    if ('speechSynthesis' in window) {
-       const utterance = new SpeechSynthesisUtterance(`أهلاً ${name}`);
-       utterance.lang = 'ar-SA';
-       window.speechSynthesis.speak(utterance);
+    // 2. High-quality AI Voice Greeting
+    try {
+       const greetingText = `أهلاً بك يا ${name}`;
+       const audioBase64 = await generateSpeech(greetingText);
+       if (audioBase64) {
+          await playRawAudio(audioBase64);
+       }
+    } catch (e) {
+       console.error("Speech error", e);
     }
   };
 

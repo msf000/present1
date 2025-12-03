@@ -1,4 +1,4 @@
-import { Student, AttendanceRecord, AttendanceStatus, AppSettings, User, School, SystemLog, LeaveRequest } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, AppSettings, User, School, SystemLog, LeaveRequest, SchoolEvent } from '../types';
 
 const STORAGE_KEYS = {
   SCHOOLS: 'attendance_app_schools',
@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   LOGS: 'attendance_app_logs',
   IMPERSONATOR: 'attendance_app_impersonator',
   LEAVE_REQUESTS: 'attendance_app_leave_requests',
+  EVENTS: 'attendance_app_events',
 };
 
 // --- Helper for Logging ---
@@ -134,7 +135,8 @@ export const generateMockData = () => {
        reason: 'ظروف صحية طارئة',
        status: 'pending',
        requestDate: today.toISOString(),
-       parentName: 'ولي أمر أحمد'
+       parentName: 'ولي أمر أحمد',
+       type: 'absence'
     },
     {
        id: 'lr2',
@@ -144,7 +146,30 @@ export const generateMockData = () => {
        reason: 'موعد أسنان',
        status: 'approved',
        requestDate: new Date(today.getTime() - 172800000).toISOString(),
-       parentName: 'والدة سارة'
+       parentName: 'والدة سارة',
+       type: 'early_exit',
+       exitTime: '11:30',
+       pickupPerson: 'السائق الخاص'
+    }
+  ];
+
+  // 6. Create Mock Events
+  const events: SchoolEvent[] = [
+    {
+      id: 'ev1',
+      schoolId: 's1',
+      title: 'اجتماع أولياء الأمور',
+      date: new Date(today.getTime() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
+      type: 'meeting',
+      description: 'مناقشة نتائج الفصل الأول'
+    },
+    {
+      id: 'ev2',
+      schoolId: 's1',
+      title: 'اختبار الرياضيات النصفي',
+      date: new Date(today.getTime() + 86400000 * 5).toISOString().split('T')[0], // 5 days from now
+      type: 'exam',
+      description: 'الصف العاشر والحادي عشر'
     }
   ];
 
@@ -153,6 +178,7 @@ export const generateMockData = () => {
   localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
   localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(leaveRequests));
+  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({ 
     attendanceThreshold: 75,
     classes: ['العاشر', 'الحادي عشر', 'الثاني عشر'] 
@@ -318,8 +344,8 @@ export const updateLeaveRequestStatus = (id: string, status: 'approved' | 'rejec
       const updatedRequests = requests.map(r => r.id === id ? request : r);
       localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(updatedRequests));
       
-      // If approved, automatically create an attendance record
-      if (status === 'approved') {
+      // If approved AND it is a FULL absence, automatically create an attendance record
+      if (status === 'approved' && request.type === 'absence') {
          const newRecord: AttendanceRecord = {
             id: `${request.date}-${request.studentId}`,
             studentId: request.studentId,
@@ -331,11 +357,48 @@ export const updateLeaveRequestStatus = (id: string, status: 'approved' | 'rejec
          saveAttendance([newRecord]);
          addSystemLog('الموافقة على استئذان', `تم الموافقة على طلب استئذان وتسجيل عذر للطالب`, 'success');
       } else {
-         addSystemLog('رفض استئذان', `تم رفض طلب استئذان`, 'warning');
+         addSystemLog('تحديث حالة استئذان', `تم تحديث حالة طلب الاستئذان إلى ${status}`, 'info');
       }
       return true;
    }
    return false;
+};
+
+// --- Events Management ---
+export const getEvents = (schoolId?: string): SchoolEvent[] => {
+  const data = localStorage.getItem(STORAGE_KEYS.EVENTS);
+  let allEvents: SchoolEvent[] = data ? JSON.parse(data) : [];
+  
+  if (schoolId) {
+    return allEvents.filter(e => e.schoolId === schoolId);
+  }
+  return allEvents;
+};
+
+export const saveEvent = (event: SchoolEvent) => {
+  const allEvents = getEvents(); // Get all
+  const index = allEvents.findIndex(e => e.id === event.id);
+  
+  let updatedEvents = [...allEvents];
+  if (index >= 0) {
+    updatedEvents[index] = event;
+  } else {
+    updatedEvents.push(event);
+  }
+  
+  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updatedEvents));
+};
+
+export const deleteEvent = (eventId: string) => {
+  const allEvents = getEvents();
+  const filtered = allEvents.filter(e => e.id !== eventId);
+  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(filtered));
+};
+
+export const saveEvents = (newEvents: SchoolEvent[]) => {
+  const allEvents = getEvents();
+  const updatedEvents = [...allEvents, ...newEvents];
+  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updatedEvents));
 };
 
 
@@ -382,8 +445,9 @@ export const createBackup = () => {
     settings: getSettings(),
     users: getUsers(),
     leaveRequests: getLeaveRequests(),
+    events: getEvents(),
     backupDate: new Date().toISOString(),
-    version: '2.0'
+    version: '2.1'
   };
   addSystemLog('نسخ احتياطي', 'تم إنشاء نسخة احتياطية من النظام', 'info');
   return JSON.stringify(data);
@@ -398,6 +462,7 @@ export const restoreBackup = (jsonString: string): boolean => {
     if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.settings));
     if (data.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data.users));
     if (data.leaveRequests) localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(data.leaveRequests));
+    if (data.events) localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(data.events));
     
     addSystemLog('استعادة نسخة', 'تم استعادة النظام من نسخة احتياطية', 'danger');
     return true;

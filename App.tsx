@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, ClipboardCheck, GraduationCap, Database, Settings as SettingsIcon, Menu, X, FileBarChart, LogOut, UserCircle, EyeOff, Bell, Calendar as CalendarIcon, Clock, ScanBarcode, FileSignature } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardCheck, GraduationCap, Database, Settings as SettingsIcon, Menu, X, FileBarChart, LogOut, UserCircle, EyeOff, Bell, Calendar as CalendarIcon, Clock, ScanBarcode, FileSignature, Megaphone } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
 import AttendanceSheet from './components/AttendanceSheet';
@@ -11,11 +11,13 @@ import SystemAdminDashboard from './components/SystemAdminDashboard';
 import KioskMode from './components/KioskMode';
 import LeaveRequests from './components/LeaveRequests';
 import AiAssistant from './components/AiAssistant';
+import MessagingCenter from './components/MessagingCenter';
+import SchoolCalendar from './components/SchoolCalendar';
 import { getStudents, getAttendanceRecords, generateMockData, getSettings, getCurrentUser, logoutUser, getSchoolById, getImpersonator, stopImpersonation, getLeaveRequests } from './services/storageService';
 import { getNotificationsForUser } from './services/notificationService';
 import { Student, AttendanceRecord, AppSettings, User, AppNotification } from './types';
 
-type View = 'dashboard' | 'students' | 'attendance' | 'reports' | 'student-detail' | 'settings' | 'kiosk' | 'leave-requests';
+type View = 'dashboard' | 'students' | 'attendance' | 'reports' | 'student-detail' | 'settings' | 'kiosk' | 'leave-requests' | 'messaging' | 'calendar';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -280,6 +282,19 @@ function App() {
             </button>
           )}
 
+          {/* Calendar */}
+          <button
+            onClick={() => handleNavClick('calendar')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              currentView === 'calendar'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' 
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <CalendarIcon size={20} />
+            <span>التقويم المدرسي</span>
+          </button>
+
           {/* Leave Requests Menu Item */}
           <button
             onClick={() => handleNavClick('leave-requests')}
@@ -325,6 +340,21 @@ function App() {
             >
               <Users size={20} />
               <span>الطلاب</span>
+            </button>
+          )}
+
+          {/* Messaging Center */}
+          {(currentUser.role === 'principal' || currentUser.role === 'admin' || currentUser.role === 'vice_principal') && (
+             <button
+              onClick={() => handleNavClick('messaging')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                currentView === 'messaging'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Megaphone size={20} />
+              <span>الرسائل والإعلانات</span>
             </button>
           )}
 
@@ -406,6 +436,8 @@ function App() {
             {currentView === 'reports' && 'تقارير الحضور الشهرية'}
             {currentView === 'settings' && 'الإعدادات'}
             {currentView === 'leave-requests' && 'نظام الاستئذان'}
+            {currentView === 'messaging' && 'مركز الرسائل'}
+            {currentView === 'calendar' && 'التقويم المدرسي'}
           </h2>
           <div className="flex items-center gap-4">
              {/* Notification Bell */}
@@ -503,6 +535,14 @@ function App() {
               onUpdate={loadData}
               onRequestBack={() => setCurrentView('dashboard')}
            />
+        )}
+
+        {currentView === 'messaging' && (
+           <MessagingCenter students={students} />
+        )}
+
+        {currentView === 'calendar' && currentUser?.schoolId && (
+           <SchoolCalendar schoolId={currentUser.schoolId} />
         )}
 
         {currentView === 'settings' && canManageSettings && (
