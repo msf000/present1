@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowRight, Calendar, User, BrainCircuit, FileText, Edit2, Save, X, Star, Medal, Clock, ShieldCheck, MessageSquare, Printer, ChevronLeft, ChevronRight, TrendingUp, Phone } from 'lucide-react';
+import { ArrowRight, Calendar, User, BrainCircuit, FileText, Edit2, Save, X, Star, Medal, Clock, ShieldCheck, MessageSquare, Printer, ChevronLeft, ChevronRight, TrendingUp, Phone, FileWarning, Award } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
-import { analyzeStudentReport } from '../services/geminiService';
+import { analyzeStudentReport, generateSchoolLetter } from '../services/geminiService';
 import { saveAttendance, updateStudent } from '../services/storageService';
+import OfficialLetterModal from './OfficialLetterModal';
 
 interface StudentHistoryProps {
   student: Student;
@@ -27,6 +28,12 @@ const StudentHistory: React.FC<StudentHistoryProps> = ({ student, allRecords, on
 
   // Calendar View State
   const [calendarDate, setCalendarDate] = useState(new Date());
+
+  // Letter Generation State
+  const [isLetterModalOpen, setIsLetterModalOpen] = useState(false);
+  const [letterContent, setLetterContent] = useState('');
+  const [letterType, setLetterType] = useState<'warning' | 'appreciation'>('warning');
+  const [isGeneratingLetter, setIsGeneratingLetter] = useState(false);
 
   const studentRecords = useMemo(() => {
     return allRecords
@@ -136,6 +143,22 @@ const StudentHistory: React.FC<StudentHistoryProps> = ({ student, allRecords, on
     setReport(result);
     setLoadingReport(false);
   };
+  
+  const handleGenerateLetter = async (type: 'warning' | 'appreciation') => {
+    setIsGeneratingLetter(true);
+    setLetterType(type);
+    
+    // Get absent dates for warning context
+    const absentDates = studentRecords
+      .filter(r => r.status === AttendanceStatus.ABSENT)
+      .slice(0, 5) // Last 5 absences
+      .map(r => r.date);
+
+    const letter = await generateSchoolLetter(student.name, student.grade, type, { days: absentDates });
+    setLetterContent(letter);
+    setIsGeneratingLetter(false);
+    setIsLetterModalOpen(true);
+  };
 
   const handlePrint = () => {
     window.print();
@@ -208,6 +231,15 @@ const StudentHistory: React.FC<StudentHistoryProps> = ({ student, allRecords, on
 
   return (
     <div className="space-y-6 animate-fade-in print:space-y-4">
+      {/* Official Letter Modal */}
+      <OfficialLetterModal 
+        isOpen={isLetterModalOpen}
+        onClose={() => setIsLetterModalOpen(false)}
+        content={letterContent}
+        studentName={student.name}
+        type={letterType}
+      />
+
       <div className="flex justify-between items-center print:hidden">
         <button 
           onClick={onBack}
@@ -318,6 +350,26 @@ const StudentHistory: React.FC<StudentHistoryProps> = ({ student, allRecords, on
             <span className="text-red-700 font-medium print:text-slate-700">غياب</span>
             <span className="text-2xl font-bold text-red-700 print:text-slate-900">{stats.absent}</span>
           </div>
+        </div>
+
+        {/* --- Action Buttons (Letters) --- */}
+        <div className="grid grid-cols-2 gap-4 mb-8 print:hidden">
+           <button 
+             onClick={() => handleGenerateLetter('warning')}
+             disabled={isGeneratingLetter}
+             className="p-3 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-lg flex items-center justify-center gap-2 font-bold transition-colors disabled:opacity-50"
+           >
+             {isGeneratingLetter && letterType === 'warning' ? <div className="animate-spin w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full"></div> : <FileWarning size={20} />}
+             <span>إنشاء خطاب إنذار</span>
+           </button>
+           <button 
+             onClick={() => handleGenerateLetter('appreciation')}
+             disabled={isGeneratingLetter}
+             className="p-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg flex items-center justify-center gap-2 font-bold transition-colors disabled:opacity-50"
+           >
+             {isGeneratingLetter && letterType === 'appreciation' ? <div className="animate-spin w-4 h-4 border-2 border-indigo-700 border-t-transparent rounded-full"></div> : <Award size={20} />}
+             <span>إنشاء شهادة شكر</span>
+           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:grid-cols-1">

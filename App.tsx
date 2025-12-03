@@ -10,6 +10,7 @@ import Login from './components/Login';
 import SystemAdminDashboard from './components/SystemAdminDashboard';
 import KioskMode from './components/KioskMode';
 import LeaveRequests from './components/LeaveRequests';
+import AiAssistant from './components/AiAssistant';
 import { getStudents, getAttendanceRecords, generateMockData, getSettings, getCurrentUser, logoutUser, getSchoolById, getImpersonator, stopImpersonation, getLeaveRequests } from './services/storageService';
 import { getNotificationsForUser } from './services/notificationService';
 import { Student, AttendanceRecord, AppSettings, User, AppNotification } from './types';
@@ -512,6 +513,12 @@ function App() {
             currentSchoolId={currentUser.schoolId}
           />
         )}
+        
+        {/* Render AI Assistant only if not in Kiosk mode */}
+        {currentView !== 'kiosk' && currentUser.role !== 'general_manager' && (
+           <AiAssistant students={students} records={records} currentUser={currentUser} />
+        )}
+
       </main>
     </div>
   );

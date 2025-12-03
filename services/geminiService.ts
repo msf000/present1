@@ -299,3 +299,238 @@ export const processImageAttendance = async (imageBase64: string, mimeType: stri
     throw new Error("فشل تحليل الصورة، يرجى التأكد من وضوح الكتابة.");
   }
 };
+
+export const transcribeAudio = async (audioBase64: string, mimeType: string) => {
+  try {
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          { inlineData: { mimeType, data: audioBase64 } },
+          { text: "Transcribe the spoken Arabic/English text exactly. Do not add any other text." }
+        ]
+      }
+    });
+    return response.text;
+  } catch (error) {
+    console.error("Transcription error", error);
+    return "";
+  }
+};
+
+// --- TTS & Audio Playback Helpers ---
+
+export const generateSpeech = async (text: string) => {
+  try {
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Zephyr' }, // Zephyr (Male-ish) or Kore (Female-ish)
+            },
+        },
+      },
+    });
+    
+    // The API returns raw audio bytes in inlineData
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  } catch (error) {
+    console.error("TTS Error", error);
+    return null;
+  }
+};
+
+// Helper to decode base64 string
+function decode(base64: string) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// Helper to play raw PCM data (Mono, 24kHz as per Gemini 2.5 TTS defaults)
+export const playRawAudio = async (base64Audio: string) => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    
+    const audioCtx = new AudioContext({ sampleRate: 24000 });
+    
+    // Decode manual buffer
+    const audioBytes = decode(base64Audio);
+    
+    // Create AudioBuffer
+    // Gemini TTS output is typically 24kHz mono PCM 16-bit
+    // We need to convert Int16/Uint8 to Float32
+    
+    const dataInt16 = new Int16Array(audioBytes.buffer);
+    const float32Data = new Float32Array(dataInt16.length);
+    for (let i = 0; i < dataInt16.length; i++) {
+      float32Data[i] = dataInt16[i] / 32768.0;
+    }
+    
+    const buffer = audioCtx.createBuffer(1, float32Data.length, 24000);
+    buffer.copyToChannel(float32Data, 0);
+    
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.start();
+    
+    return source; // return source in case we want to stop it
+  } catch (e) {
+    console.error("Error playing audio", e);
+  }
+};
+
+export const streamAssistantMessage = async (
+  message: string, 
+  contextData: any
+) => {
+  const ai = getAiClient();
+  
+  const systemInstruction = `
+    أنت المساعد الذكي لنظام إدارة المدارس.
+    
+    البيانات الحالية:
+    ${JSON.stringify(contextData)}
+    
+    المهام:
+    1. الإجابة عن أسئلة حول الحضور والطلاب.
+    2. صياغة رسائل لأولياء الأمور.
+    3. تقديم تحليلات سريعة.
+    4. الإجابة عن الأسئلة العامة باستخدام البحث (مثل العطل الرسمية، الأخبار التعليمية).
+    
+    تعليمات:
+    - تحدث باللغة العربية بأسلوب مهني وودود.
+    - كن موجزاً ومباشراً.
+    - استخدم تنسيق Markdown عند الحاجة.
+  `;
+
+  const chat = ai.chats.create({
+    model: 'gemini-2.5-flash',
+    config: {
+      systemInstruction: systemInstruction,
+      tools: [{googleSearch: {}}], // Enable Search
+    }
+  });
+
+  return chat.sendMessageStream({ message });
+};
+
+export const generateSchoolLetter = async (
+  studentName: string,
+  grade: string,
+  type: 'warning' | 'appreciation',
+  details: { days?: string[], reason?: string }
+) => {
+  try {
+    const ai = getAiClient();
+    
+    let prompt = '';
+    
+    if (type === 'warning') {
+      prompt = `
+        اكتب خطاب إنذار رسمي لولي أمر الطالب "${studentName}" بالصف "${grade}".
+        الطالب لديه غيابات في الأيام التالية: ${details.days?.join(', ')}.
+        مجموع أيام الغياب: ${details.days?.length}.
+        
+        الهيكل المطلوب:
+        - ابدأ بـ "المكرم ولي أمر الطالب...".
+        - ذكر عدد أيام الغياب وتواريخها بوضوح.
+        - تحذير من تجاوز النسبة المسموحة وتأثير ذلك على الدرجات.
+        - طلب الحضور للمدرسة أو التواصل مع المرشد الطلابي.
+        - خاتمة رسمية (إدارة المدرسة).
+        
+        الصياغة:
+        - لغة عربية فصحى، رسمية جداً، وحازمة ومهذبة.
+        - لا تضع أي ترويسة أو توقيع، فقط نص الرسالة (body).
+      `;
+    } else {
+      prompt = `
+        اكتب خطاب شكر وتقدير لولي أمر الطالب "${studentName}" بالصف "${grade}".
+        السبب: ${details.reason || 'الانتظام في الحضور والتميز السلوكي'}.
+        
+        الهيكل المطلوب:
+        - ابدأ بـ "المكرم ولي أمر الطالب...".
+        - شكر وتقدير لاهتمام الأسرة ومتابعتها.
+        - الإشادة بالطالب وانتظامه.
+        - تمنيات بالتوفيق.
+        - خاتمة رسمية (إدارة المدرسة).
+        
+        الصياغة:
+        - لغة عربية فصحى، رسمية، دافئة ومشجعة.
+        - لا تضع أي ترويسة أو توقيع، فقط نص الرسالة (body).
+      `;
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    return response.text;
+  } catch (error) {
+    console.error("Letter generation error", error);
+    return "عذراً، لم نتمكن من صياغة الخطاب حالياً.";
+  }
+};
+
+export const generateThemeImage = async (prompt: string) => {
+  try {
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [{ text: `Create a professional letter background or border image. Style: ${prompt}. Minimalist, high quality, suitable for school documents. No text.` }]
+      },
+      config: {
+         imageConfig: {
+            aspectRatio: "3:4", 
+         }
+      }
+    });
+    
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Image gen error", error);
+    return null;
+  }
+};
+
+export const generateDailyInsight = async (summaryData: any) => {
+  try {
+    const ai = getAiClient();
+    
+    const prompt = `
+      بناءً على ملخص بيانات المدرسة اليوم:
+      ${JSON.stringify(summaryData)}
+      
+      قدم "رؤية استراتيجية" واحدة قصيرة جداً (سطرين كحد أقصى) للمدير.
+      ركز على: صف دراسي معين يعاني من مشاكل، أو نمط غياب (مثل يوم معين)، أو نصيحة لتحسين الانضباط.
+      ابدأ النصيحة مباشرة بدون مقدمات.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    
+    return response.text;
+  } catch (error) {
+    return null;
+  }
+};

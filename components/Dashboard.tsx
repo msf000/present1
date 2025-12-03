@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Users, CheckCircle, XCircle, Clock, BrainCircuit, FileDown, AlertTriangle, Star, PieChart as PieChartIcon, FileText, Activity, Filter, ArrowRight, ClipboardCheck, Medal, Trophy, FileSignature } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Clock, BrainCircuit, FileDown, AlertTriangle, Star, PieChart as PieChartIcon, FileText, Activity, Filter, ArrowRight, ClipboardCheck, Medal, Trophy, FileSignature, Lightbulb } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus, DailyStat, AppSettings } from '../types';
-import { analyzeAttendance } from '../services/geminiService';
+import { analyzeAttendance, generateDailyInsight } from '../services/geminiService';
 import { exportToCSV, getLeaveRequests, getCurrentUser } from '../services/storageService';
 
 interface DashboardProps {
@@ -17,6 +17,7 @@ const COLORS = ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6']; // Green, Red, Ambe
 const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNavigate }) => {
   const [stats, setStats] = useState<DailyStat[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [dailyInsight, setDailyInsight] = useState<string>('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [pendingLeaves, setPendingLeaves] = useState(0);
@@ -81,6 +82,25 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
        const allLeaves = getLeaveRequests(user.schoolId);
        setPendingLeaves(allLeaves.filter(l => l.status === 'pending').length);
     }
+  }, [filteredRecords]);
+
+  useEffect(() => {
+    // Load Daily Insight once
+    const loadInsight = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const todayRecords = filteredRecords.filter(r => r.date === today);
+      if (todayRecords.length > 0 && !dailyInsight) {
+         const summary = {
+           present: todayRecords.filter(r => r.status === AttendanceStatus.PRESENT).length,
+           absent: todayRecords.filter(r => r.status === AttendanceStatus.ABSENT).length,
+           late: todayRecords.filter(r => r.status === AttendanceStatus.LATE).length,
+           excused: todayRecords.filter(r => r.status === AttendanceStatus.EXCUSED).length,
+         };
+         const insight = await generateDailyInsight(summary);
+         if (insight) setDailyInsight(insight);
+      }
+    };
+    loadInsight();
   }, [filteredRecords]);
 
   const handleAiAnalysis = async () => {
@@ -157,6 +177,20 @@ const Dashboard: React.FC<DashboardProps> = ({ students, records, settings, onNa
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Daily Insight Widget */}
+      {dailyInsight && (
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-4 text-white shadow-lg flex items-start gap-3 relative overflow-hidden">
+           <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+             <Lightbulb className="text-yellow-300" size={24} />
+           </div>
+           <div className="flex-1 relative z-10">
+              <h3 className="font-bold text-sm opacity-90 mb-1">رؤية اليوم الذكية</h3>
+              <p className="text-sm md:text-base font-medium leading-relaxed">{dailyInsight}</p>
+           </div>
+           <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+        </div>
+      )}
+
       {/* Header Actions & Filter */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
         {/* Quick Actions */}
