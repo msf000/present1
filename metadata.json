@@ -1,0 +1,8 @@
+{
+  "name": "نظام متابعة الحضور الذكي",
+  "description": "تطبيق متكامل لمتابعة حضور وغياب الطلاب مع تحليلات ذكية باستخدام Gemini AI.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

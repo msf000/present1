@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>نظام متابعة الحضور الذكي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Tajawal', sans-serif;
+      }
+      @media print {
+        @page { size: landscape; margin: 5mm; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        
+        /* Specific print rules for ID Cards */
+        body.printing-id-card > *:not(.print-container) { display: none !important; }
+        body.printing-id-card .print-container { 
+          display: flex !important; 
+          position: fixed; 
+          top: 0; 
+          left: 0; 
+          width: 100vw; 
+          height: 100vh; 
+          align-items: center; 
+          justify-content: center;
+          background: white;
+          z-index: 9999;
+        }
+      }
+      
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      .animate-fade-in {
+        animation: fade-in 0.4s ease-out forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
